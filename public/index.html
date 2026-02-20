@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko" id="html-root">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Board.io — 게시글과 댓글을 관리하세요." />
+  <title>Board.io</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { font-family: 'Noto Sans KR', system-ui, sans-serif; }
+    #lang-switch {
+      background: none; border: 1px solid var(--border); border-radius: .4rem;
+      padding: .3rem .7rem; font-size: .82rem; font-weight: 600; cursor: pointer;
+      color: var(--text); transition: background .15s, color .15s;
+    }
+    #lang-switch:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-inner">
+        <a href="/" data-link class="logo">Board<span>.io</span></a>
+        <nav style="display:flex;gap:.75rem;align-items:center;">
+          <a href="/" data-link class="btn btn-ghost btn-sm" id="nav-home">홈</a>
+          <a href="/api-docs" class="btn btn-ghost btn-sm" target="_blank" rel="noopener" id="nav-api">API 문서</a>
+          <button id="lang-switch" aria-label="Switch language">EN</button>
+          <a href="/posts/new" data-link class="btn btn-primary btn-sm" id="nav-write">+ 글쓰기</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="loading"><div class="spinner"></div></div>
+    </main>
+
+    <footer>
+      &copy; 2026 Board.io &mdash; <span id="footer-powered">Powered by Node.js + SQLite</span>
+      &nbsp;|&nbsp;
+      <a href="/api-docs" target="_blank" id="footer-api" style="color:var(--primary);">API 문서 보기</a>
+    </footer>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/app.js"></script>
+</body>
+</html>
