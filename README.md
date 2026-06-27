@@ -2,6 +2,10 @@
 
 A production-ready bilingual (Korean/English) CRUD bulletin board with an AI comment bot.
 
+## 배경 / 의도
+
+CRUD 게시판을 처음부터 만들면서 AI 댓글 봇(실시간 웹 검색 + 요약)까지 붙여보는 실습 프로젝트. AWS에서 pm2로 상시 운영 중이었음.
+
 ## Features
 
 - 📝 Full CRUD for posts and comments

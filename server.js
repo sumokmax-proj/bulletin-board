@@ -43,13 +43,17 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Rate limiting
+// Rate limiting (localhost AI 봇은 제외)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutes
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.' },
+  skip: (req) => {
+    const ip = req.ip || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  },
 });
 app.use('/api', apiLimiter);
 

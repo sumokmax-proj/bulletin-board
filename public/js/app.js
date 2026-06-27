@@ -309,13 +309,10 @@ async function renderList(page = 1, q = '') {
     setHTML(`
       <div class="list-header">
         <h2>${t('boardTitle')}</h2>
-        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
-          <form class="search-wrap" id="search-form">
-            <input type="text" placeholder="${t('searchPlaceholder')}" value="${esc(q)}" id="search-input" />
-            <button class="btn btn-ghost btn-sm" type="submit">${t('searchBtn')}</button>
-          </form>
-          <a href="/posts/new" data-link class="btn btn-primary btn-sm">${t('writePost')}</a>
-        </div>
+        <form class="search-wrap" id="search-form">
+          <input type="text" placeholder="${t('searchPlaceholder')}" value="${esc(q)}" id="search-input" />
+          <button class="btn btn-ghost btn-sm" type="submit">${t('searchBtn')}</button>
+        </form>
       </div>
       <div class="card" style="overflow:hidden;">
         <table class="post-table">

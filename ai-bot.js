@@ -12,7 +12,7 @@ const AI_AUTHOR  = 'AI';
 // 이전 버전 작성자명과 하위 호환 처리
 const AI_AUTHORS = new Set(['AI', '🤖 AI 어시스턴트']);
 const isAIComment = c => AI_AUTHORS.has(c.author);
-const POLL_SEC   = parseInt(process.env.POLL_SEC || '20', 10);
+const POLL_SEC   = parseInt(process.env.POLL_SEC || '40', 10);
 const API_KEY    = process.env.OPENAI_API_KEY;
 
 if (!API_KEY) {
@@ -34,6 +34,41 @@ async function getPlaywright() {
   }
 }
 
+/* Hacker News 직접 스크래핑 */
+async function scrapeHackerNews() {
+  const pw = await getPlaywright();
+  if (!pw) return null;
+  let browser;
+  try {
+    browser = await pw.chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto('https://news.ycombinator.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForSelector('.athing', { timeout: 10000 });
+
+    const stories = await page.$$eval('.athing', items =>
+      items.slice(0, 10).map(item => {
+        const titleEl = item.querySelector('.titleline > a');
+        const meta    = item.nextElementSibling;
+        const score   = meta?.querySelector('.score')?.textContent || '';
+        const comments= meta?.querySelector('a[href*="item?id"]')?.textContent || '';
+        return {
+          title:   titleEl?.textContent?.trim() || '',
+          url:     titleEl?.href || '',
+          snippet: [score, comments].filter(Boolean).join(' | '),
+        };
+      }).filter(s => s.title)
+    );
+    console.log(`[AI Bot] HN 스크래핑 성공: ${stories.length}개 기사`);
+    return stories.length > 0 ? stories : null;
+  } catch (err) {
+    console.error('[AI Bot] HN 스크래핑 오류:', err.message);
+    return null;
+  } finally {
+    if (browser) await browser.close();
+  }
+}
+
+/* Brave Search (DDG가 봇 감지 차단하므로 Brave로 교체) */
 async function browserSearch(query) {
   const pw = await getPlaywright();
   if (!pw) {
@@ -41,35 +76,40 @@ async function browserSearch(query) {
     return null;
   }
 
+  // HN 관련 질문은 직접 HN 스크래핑
+  const lq = query.toLowerCase();
+  if (lq.includes('hacker news') || lq.includes('해커뉴스') || lq.includes(' hn ') || lq.startsWith('hn ')) {
+    console.log('[AI Bot] HN 직접 스크래핑 모드');
+    return scrapeHackerNews();
+  }
+
   let browser;
   try {
     browser = await pw.chromium.launch({ headless: true });
-    const page = await browser.newPage();
-
-    // Bing 검색 (봇 차단이 덜함)
-    await page.goto(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 30000,
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
+    const page = await context.newPage();
 
-    // 검색 결과 추출 (상위 5개)
-    const results = await page.evaluate(() => {
-      const items = [];
-      document.querySelectorAll('#b_results .b_algo').forEach((el, i) => {
-        if (i >= 5) return;
-        const titleEl = el.querySelector('h2 a');
-        const snippetEl = el.querySelector('.b_caption p');
-        if (titleEl && snippetEl) {
-          items.push({
-            title: titleEl.textContent.trim(),
-            url: titleEl.href,
-            snippet: snippetEl.textContent.trim(),
-          });
-        }
-      });
-      return items;
-    });
+    // Brave Search — 봇 감지 없음, 안정적인 결과
+    const url = `https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`;
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForSelector('[data-type="web"]', { timeout: 10000 });
 
+    const results = await page.$$eval('[data-type="web"]', els =>
+      els.slice(0, 5).map(el => {
+        const titleEl = el.querySelector('a');
+        const title   = titleEl?.textContent?.trim() || '';
+        const url     = titleEl?.href || '';
+        // 스니펫: p 태그 or snippet 클래스 or 전체 텍스트에서 타이틀 제거
+        const snippetEl = el.querySelector('p, [class*="snippet"], [class*="desc"]');
+        const snippet = snippetEl?.textContent?.trim() ||
+          el.textContent?.replace(title, '')?.trim()?.slice(0, 200) || '';
+        return { title, url, snippet };
+      }).filter(r => r.title)
+    );
+
+    console.log(`[AI Bot] Brave 검색 성공: ${results.length}개 결과`);
     return results.length > 0 ? results : null;
   } catch (err) {
     console.error('[AI Bot] 브라우저 검색 오류:', err.message);
@@ -116,20 +156,24 @@ async function askAI(post) {
   const searchResults = await browserSearch(searchQuery);
 
   // 3) 시스템 프롬프트
+  const searchSection = searchResults
+    ? `\n\n## 실시간 웹 검색 결과 (방금 브라우저로 직접 검색한 최신 데이터)\n${
+        searchResults.map((r, i) => `${i + 1}. **${r.title}**\n   ${r.snippet}\n   출처: ${r.url}`).join('\n\n')
+      }\n\n위 검색 결과를 반드시 활용하여 답변하세요. "실시간 정보에 접근할 수 없다"거나 "인터넷 검색이 불가하다"는 말은 절대 하지 마세요.`
+    : '';
+
   const systemPrompt = `당신은 친절하고 유익한 게시판 AI 어시스턴트입니다.
 사용자의 게시글과 댓글을 읽고 자연스럽게 답변합니다.
 
 답변 규칙:
 - 질문에는 정확하고 친절하게 답변합니다.
-- 아래 웹 검색 결과가 있으면 활용해 최신 정보를 포함합니다.
+- 아래 웹 검색 결과가 제공되면 반드시 그 내용을 기반으로 답변합니다.
+- "인터넷에 접속할 수 없다", "실시간 정보를 가져올 수 없다" 같은 말은 절대 하지 않습니다.
 - 답변은 **마크다운 형식**으로 작성합니다 (제목, 목록, 굵은 글씨 등 활용).
 - 출처가 있으면 링크를 포함합니다.
 - 한국어로 자연스럽게 작성합니다.
 - 핵심을 명확히 전달하되 너무 길지 않게 합니다.
-${searchResults ? `
-## 웹 검색 결과 (참고용)
-${searchResults.map((r, i) => `${i + 1}. **${r.title}**\n   ${r.snippet}\n   출처: ${r.url}`).join('\n\n')}
-` : ''}`;
+${searchSection}`;
 
   // 4) 사용자 메시지 (게시글 + 대화 맥락)
   let userMessage = `## 게시글\n**제목:** ${post.title}\n**작성자:** ${post.author}\n\n${post.content}`;
